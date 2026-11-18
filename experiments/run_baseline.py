@@ -1,58 +1,56 @@
-"""Baseline experiment: how much does a performance-based selector amplify the RAE?
+"""Baseline: how much bias does each human-like selector introduce, with and without the loop?
 
-Compares the oracle with a performance-based selector without and with the training-exposure
-feedback loop, over several seeds, and prints means with 95% confidence intervals.
+Compares the oracle, a memoryless performance-based selector and a scout with memory, with
+the feedback loop off and on, over several seeds (paired: same athletes for every selector).
 Results are written to ``results/baseline_runs.csv`` (ignored by git).
+
+Usage: python experiments/run_baseline.py [--seeds 30] [--athletes 20000]
 """
 
 from __future__ import annotations
 
+import argparse
 from dataclasses import replace
-from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
+from common import EXPOSURES, SCOUT, fmt, save
 from rae import OracleSelector, PerformanceSelector, SimConfig, simulate
 from rae.metrics import summarize
 
-N_SEEDS = 30
-BASE = SimConfig(n_athletes=20_000)
-
-CONDITIONS = {
-    "oracle": (OracleSelector(), BASE),
-    "performance, no feedback loop": (PerformanceSelector(), BASE),
-    "performance, with feedback loop": (
-        PerformanceSelector(),
-        replace(BASE, exposure_weight=0.5),
-    ),
+SELECTORS = {
+    "oracle": OracleSelector(),
+    "memoryless performance": PerformanceSelector(),
+    "scout with memory": SCOUT,
 }
 
 
-def run() -> pd.DataFrame:
+def run(n_seeds: int, n_athletes: int) -> pd.DataFrame:
     rows = []
-    for name, (selector, cfg) in CONDITIONS.items():
-        for seed in range(N_SEEDS):
-            metrics = summarize(simulate(replace(cfg, seed=seed), selector))
-            rows.append({"condition": name, "seed": seed, **metrics})
+    for exposure in EXPOSURES:
+        cfg = SimConfig(n_athletes=n_athletes, exposure_weight=exposure)
+        for name, selector in SELECTORS.items():
+            for seed in range(n_seeds):
+                metrics = summarize(simulate(replace(cfg, seed=seed), selector))
+                row = {"exposure_weight": exposure, "selector": name, "seed": seed}
+                rows.append({**row, **metrics})
     return pd.DataFrame(rows)
 
 
 def main() -> None:
-    runs = run()
-    out_dir = Path("results")
-    out_dir.mkdir(exist_ok=True)
-    runs.to_csv(out_dir / "baseline_runs.csv", index=False)
+    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser.add_argument("--seeds", type=int, default=30)
+    parser.add_argument("--athletes", type=int, default=20_000)
+    args = parser.parse_args()
 
-    metric_cols = [c for c in runs.columns if c not in ("condition", "seed")]
-    grouped = runs.groupby("condition", sort=False)[metric_cols]
-    mean = grouped.mean()
-    half_ci = 1.96 * grouped.std() / np.sqrt(N_SEEDS)
-    for condition in mean.index:
-        print(f"\n{condition}")
+    runs = run(args.seeds, args.athletes)
+    save(runs, "baseline_runs.csv")
+
+    metric_cols = [c for c in runs.columns if c not in ("exposure_weight", "selector", "seed")]
+    for (exposure, name), block in runs.groupby(["exposure_weight", "selector"], sort=False):
+        print(f"\n{name}, exposure_weight = {exposure}")
         for col in metric_cols:
-            value, err = mean.loc[condition, col], half_ci.loc[condition, col]
-            print(f"  {col:32s} {value:8.3f} +/- {err:.3f}")
+            print(f"  {col:32s} {fmt(block[col])}")
 
 
 if __name__ == "__main__":
