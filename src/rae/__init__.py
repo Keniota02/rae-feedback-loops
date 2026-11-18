@@ -5,7 +5,13 @@ from rae.config import SimConfig
 from rae.generations import run_generations
 from rae.learning import MLSelector, build_training_data, train_selector
 from rae.pipeline import SimulationResult, StageRecord, simulate
-from rae.selectors import OracleSelector, PerformanceSelector, Selector
+from rae.selectors import (
+    OracleSelector,
+    PerformanceSelector,
+    ScoutSelector,
+    Selector,
+    StageContext,
+)
 
 __version__ = "0.1.0"
 
@@ -14,9 +20,11 @@ __all__ = [
     "MLSelector",
     "OracleSelector",
     "PerformanceSelector",
+    "ScoutSelector",
     "Selector",
     "SimConfig",
     "SimulationResult",
+    "StageContext",
     "StageRecord",
     "build_training_data",
     "generate_athletes",

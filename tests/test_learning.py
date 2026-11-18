@@ -6,6 +6,7 @@ import pytest
 from rae import (
     OracleSelector,
     PerformanceSelector,
+    ScoutSelector,
     SimConfig,
     SimulationResult,
     build_training_data,
@@ -25,10 +26,10 @@ def test_training_data_for_decisions_has_one_row_per_pool_member():
     history = _history(SMALL)
     expected_rows = sum(record.pool.size for res in history for record in res.stages)
     x, y = build_training_data(history, "decisions", use_birth_info=False)
-    assert x.shape == (expected_rows, 3)
+    assert x.shape == (expected_rows, 4)
     assert set(np.unique(y)) <= {0, 1}
     x_birth, _ = build_training_data(history, "decisions", use_birth_info=True)
-    assert x_birth.shape == (expected_rows, 4)
+    assert x_birth.shape == (expected_rows, 5)
 
 
 def test_training_data_for_later_performance_only_uses_athletes_still_in_the_system():
@@ -59,6 +60,19 @@ def test_decision_imitation_reproduces_the_historical_selector():
     imitation = simulate(test, selector)
     overlap = (human.selected & imitation.selected).sum() / human.selected.sum()
     assert overlap > 0.98
+
+
+def test_decision_imitation_learns_the_memory_of_a_scout():
+    """The history-mean feature lets a model imitate a scout who averages all stages."""
+    cfg = replace(SimConfig(n_athletes=20_000), exposure_weight=0.0)
+    scout = ScoutSelector(memory=1.0)
+    history = [simulate(replace(cfg, seed=k), scout) for k in range(3)]
+    selector = train_selector(history, regime="decisions", use_birth_info=False)
+    test = replace(cfg, seed=999)
+    human = simulate(test, scout)
+    imitation = simulate(test, selector)
+    overlap = (human.selected & imitation.selected).sum() / human.selected.sum()
+    assert overlap > 0.95
 
 
 @pytest.mark.parametrize("regime", ["decisions", "later_performance"])

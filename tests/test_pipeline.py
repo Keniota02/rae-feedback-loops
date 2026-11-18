@@ -46,3 +46,15 @@ def test_stage_logs_are_consistent():
         assert set(following.pool) <= set(current.pool)
     last = res.stages[-1]
     assert np.array_equal(last.pool[last.selected], np.flatnonzero(res.selected))
+
+
+def test_history_is_complete_and_consistent_with_earlier_stages():
+    cfg = SimConfig(n_athletes=5_000, exposure_weight=0.5)
+    res = simulate(cfg, PerformanceSelector())
+    for record in res.stages:
+        assert record.history.shape == (record.stage + 1, record.pool.size)
+        assert not np.isnan(record.history).any()
+        assert np.array_equal(record.history[-1], record.observed)
+        for earlier in res.stages[: record.stage]:
+            position = np.searchsorted(earlier.pool, record.pool)
+            assert np.array_equal(record.history[earlier.stage], earlier.observed[position])

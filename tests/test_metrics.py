@@ -52,7 +52,11 @@ def test_efficiency_and_regret():
 
 def test_selection_rate_ratio_by_stage():
     from rae import StageRecord
-    from rae.metrics import selection_rate_ratio_by_stage
+    from rae.metrics import (
+        equal_opportunity_gap_by_stage,
+        selection_rate_ratio_by_stage,
+        talent_loss_by_stage,
+    )
 
     base = _result([False] * 8)
     stages = (
@@ -62,6 +66,7 @@ def test_selection_rate_ratio_by_stage():
             observed=np.zeros(8),
             times_selected_before=np.zeros(8, dtype=int),
             selected=np.array([True, True, True, False, False, False, False, True]),
+            history=np.zeros((1, 8)),
         ),
         StageRecord(
             stage=1,
@@ -69,6 +74,7 @@ def test_selection_rate_ratio_by_stage():
             observed=np.zeros(4),
             times_selected_before=np.ones(4, dtype=int),
             selected=np.array([True, False, False, True]),
+            history=np.zeros((2, 4)),
         ),
     )
     res = SimulationResult(
@@ -79,3 +85,7 @@ def test_selection_rate_ratio_by_stage():
         stages=stages,
     )
     assert np.allclose(selection_rate_ratio_by_stage(res), [2.0, 1.0])
+    # High-talent athletes are 0, 2, 4, 6 (one per quarter).
+    # Stage 0 selects 0 and 2: athletes 4 and 6 are lost. Stage 1 selects 0 only.
+    assert np.allclose(talent_loss_by_stage(res), [0.5, 0.75])
+    assert np.allclose(equal_opportunity_gap_by_stage(res), [1.0, 1.0])

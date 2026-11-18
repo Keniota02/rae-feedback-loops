@@ -6,9 +6,10 @@ Two labelling regimes are supported (RQ1):
 * ``later_performance``: the label is the performance observed at the next stage. It is only
   available for athletes who are still in the system, which is a selective-labels problem.
 
-Features are the observed performance, the number of earlier selections (training exposure)
-and the stage. Birth information (position in the selection year) can be added or withheld,
-to test "fairness through unawareness".
+Features are the observed performance at the current stage, the mean observed performance over
+all stages so far (the same memory a scout has), the number of earlier selections (training
+exposure) and the stage. Birth information (position in the selection year) can be added or
+withheld, to test "fairness through unawareness".
 """
 
 from __future__ import annotations
@@ -24,20 +25,34 @@ from sklearn.preprocessing import StandardScaler
 
 from rae.athletes import Athletes
 from rae.pipeline import SimulationResult
+from rae.selectors import StageContext
 
 Regime = Literal["decisions", "later_performance"]
 ModelKind = Literal["linear", "gbm"]
 
 
+FEATURES = ("observed", "history_mean", "times_selected", "stage")
+BIRTH_FEATURE = "birth_frac"
+
+
+def feature_names(use_birth_info: bool) -> tuple[str, ...]:
+    return (*FEATURES, BIRTH_FEATURE) if use_birth_info else FEATURES
+
+
 def _features(
     athletes: Athletes,
     pool: np.ndarray,
-    observed: np.ndarray,
+    history: np.ndarray,
     times_selected: np.ndarray,
     stage: int,
     use_birth_info: bool,
 ) -> np.ndarray:
-    columns = [observed, times_selected.astype(float), np.full(pool.size, float(stage))]
+    columns = [
+        history[-1],
+        history.mean(axis=0),
+        times_selected.astype(float),
+        np.full(pool.size, float(stage)),
+    ]
     if use_birth_info:
         columns.append(athletes.birth_frac[pool])
     return np.column_stack(columns)
@@ -58,7 +73,7 @@ def build_training_data(
             x = _features(
                 res.athletes,
                 record.pool,
-                record.observed,
+                record.history,
                 record.times_selected_before,
                 record.stage,
                 use_birth_info,
@@ -96,16 +111,15 @@ class MLSelector:
         self.regime = regime
         self.use_birth_info = use_birth_info
 
-    def scores(
-        self,
-        *,
-        stage: int,
-        pool: np.ndarray,
-        athletes: Athletes,
-        observed: np.ndarray,
-        times_selected: np.ndarray,
-    ) -> np.ndarray:
-        x = _features(athletes, pool, observed, times_selected, stage, self.use_birth_info)
+    def scores(self, ctx: StageContext) -> np.ndarray:
+        x = _features(
+            ctx.athletes,
+            ctx.pool,
+            ctx.history,
+            ctx.times_selected,
+            ctx.stage,
+            self.use_birth_info,
+        )
         if self.regime == "decisions":
             return self.model.predict_proba(x)[:, 1]
         return self.model.predict(x)
