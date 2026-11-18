@@ -1,5 +1,5 @@
 # Run these targets with the conda environment "rae" activated.
-.PHONY: install test lint format experiments rq1 rq2 clean
+.PHONY: install test lint format experiments baseline rq1 rq2 clean
 
 install:
 	pip install -e ".[dev]"
@@ -9,11 +9,14 @@ test:
 
 lint:
 	ruff check src tests experiments
+	ruff format --check src tests experiments
 
 format:
 	ruff format src tests experiments
 
-experiments:
+experiments: baseline rq1 rq2
+
+baseline:
 	python experiments/run_baseline.py
 
 rq1:
