@@ -5,7 +5,8 @@ Each mitigation is applied, at two or more strengths, on top of two base selecto
 performance, with birth information, on the scout's historical data). All variants face the
 same test cohort as the unmitigated base (paired comparison).
 
-Usage: python experiments/run_rq3.py [--seeds 20] [--model linear|gbm] [--athletes 20000]
+Usage: python experiments/run_rq3.py [--seeds 20] [--athletes 20000]
+       [--model linear|linear_by_stage|gbm]
 Results are written to ``results/rq3_runs_<model>.csv`` (ignored by git).
 """
 
@@ -100,7 +101,7 @@ def report(runs: pd.DataFrame) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--seeds", type=int, default=20)
-    parser.add_argument("--model", choices=["linear", "gbm"], default="linear")
+    parser.add_argument("--model", choices=["linear", "linear_by_stage", "gbm"], default="linear")
     parser.add_argument("--athletes", type=int, default=20_000)
     args = parser.parse_args()
 

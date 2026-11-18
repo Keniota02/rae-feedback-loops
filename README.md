@@ -21,12 +21,14 @@ conda activate rae
 make install        # installs the package in editable mode with dev tools
 make test           # runs the test suite
 make lint           # runs ruff
-make experiments    # runs baseline, RQ1, RQ2, ablation and RQ3 (writes CSV files to results/)
+make experiments    # runs calibration, baseline, RQ1-RQ3, ablation, sensitivity (CSV to results/)
 make figures        # draws the report figures from results/ into report/figures/
 ```
 
-Single experiments: `make baseline`, `make rq1`, `make rq2`, `make ablation`, `make rq3`. The scripts accept options, e.g.
-`python experiments/run_rq1.py --seeds 20 --model gbm` (see `--help`).
+Single experiments: `make calibration`, `make baseline`, `make rq1`, `make rq2`, `make ablation`,
+`make rq3`, `make sensitivity`. The scripts accept options, e.g.
+`python experiments/run_rq1.py --seeds 20 --model gbm` (models: `linear`, `linear_by_stage`,
+`gbm`; see `--help`).
 
 Without `make` (e.g., on Windows), run the underlying commands directly:
 `pip install -e ".[dev]"`, `pytest`, `ruff check src tests experiments`,

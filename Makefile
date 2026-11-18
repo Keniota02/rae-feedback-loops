@@ -1,5 +1,5 @@
 # Run these targets with the conda environment "rae" activated.
-.PHONY: install test lint format experiments baseline rq1 rq2 ablation rq3 figures clean
+.PHONY: install test lint format experiments calibration baseline rq1 rq2 ablation rq3 sensitivity figures clean
 
 install:
 	pip install -e ".[dev]"
@@ -14,7 +14,10 @@ lint:
 format:
 	ruff format src tests experiments
 
-experiments: baseline rq1 rq2 ablation rq3
+experiments: calibration baseline rq1 rq2 ablation rq3 sensitivity
+
+calibration:
+	python experiments/run_calibration.py
 
 baseline:
 	python experiments/run_baseline.py
@@ -30,6 +33,9 @@ ablation:
 
 rq3:
 	python experiments/run_rq3.py
+
+sensitivity:
+	python experiments/run_sensitivity.py
 
 figures:
 	python experiments/make_figures.py

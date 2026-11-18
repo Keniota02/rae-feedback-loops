@@ -10,7 +10,7 @@ that the exposure gap opens.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 
@@ -53,6 +53,9 @@ def simulate(cfg: SimConfig, selector: Selector) -> SimulationResult:
     n, n_stages = cfg.n_athletes, cfg.n_stages
 
     athletes = generate_athletes(n, cfg.maturation_corr, np.random.default_rng(ss_athletes))
+    if cfg.adult_maturation_weight:
+        potential = athletes.talent + cfg.adult_maturation_weight * athletes.maturation
+        athletes = replace(athletes, potential=potential)
     noise = np.random.default_rng(ss_noise).standard_normal((n_stages, n))
     dropout_u = np.random.default_rng(ss_dropout).random((n_stages, n))
     selector_rng = np.random.default_rng(ss_selector)

@@ -132,3 +132,38 @@ def test_selector_trained_on_a_subset_scores_with_the_same_subset():
     assert selector.feature_names == ("observed",)
     res = simulate(replace(SMALL, seed=50), selector)
     assert res.selected.sum() == round(SMALL.stage_fractions[-1] * SMALL.n_athletes)
+
+
+def test_per_stage_model_fits_each_stage_separately_and_falls_back_to_earlier_stages():
+    from sklearn.linear_model import LinearRegression
+
+    from rae.learning import PerStageModel
+
+    rng = np.random.default_rng(0)
+    stage = np.repeat([0.0, 1.0], 50)
+    x = np.column_stack([rng.standard_normal(100), stage])
+    y = np.where(stage == 0, 2.0 * x[:, 0], -3.0 * x[:, 0])
+    model = PerStageModel(LinearRegression(), stage_column=1).fit(x, y)
+    probe = np.array([[1.0, 0.0], [1.0, 1.0], [1.0, 2.0]])  # stage 2 was never seen
+    assert np.allclose(model.predict(probe), [2.0, -3.0, -3.0])
+
+
+def test_linear_by_stage_selector_runs_and_needs_the_stage_feature():
+    history = _history(SMALL, n=2)
+    selector = train_selector(
+        history, regime="later_performance", use_birth_info=True, model="linear_by_stage"
+    )
+    res = simulate(replace(SMALL, seed=60), selector)
+    assert res.selected.sum() == round(SMALL.stage_fractions[-1] * SMALL.n_athletes)
+    decisions = train_selector(
+        history, regime="decisions", use_birth_info=False, model="linear_by_stage"
+    )
+    assert simulate(replace(SMALL, seed=61), decisions).selected.any()
+    with pytest.raises(ValueError):
+        train_selector(
+            history,
+            regime="decisions",
+            use_birth_info=False,
+            model="linear_by_stage",
+            features=("observed",),
+        )

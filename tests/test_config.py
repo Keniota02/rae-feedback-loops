@@ -18,6 +18,7 @@ def test_default_config_is_valid():
         {"maturation_corr": 1.0},
         {"dropout_unselected": 1.5},
         {"noise_sd": -0.1},
+        {"adult_maturation_weight": -0.5},
         {"top_talent_fraction": 0.0},
         {"n_athletes": 5, "stage_fractions": (0.01,)},  # selects zero athletes
     ],

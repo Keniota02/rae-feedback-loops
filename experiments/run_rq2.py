@@ -10,7 +10,8 @@ and retrained on its own decisions and outcomes for several generations. Generat
 historical data of the scout. Cohorts are independent birth years: the only channel across
 cohorts is the data the model is retrained on.
 
-Usage: python experiments/run_rq2.py [--seeds 10] [--model linear|gbm] [--athletes 20000]
+Usage: python experiments/run_rq2.py [--seeds 10] [--athletes 20000]
+       [--model linear|linear_by_stage|gbm]
 Results are written to ``results/rq2_stages.csv`` and ``results/rq2_generations_<model>.csv``.
 """
 
@@ -117,7 +118,7 @@ def print_generation_table(gens: pd.DataFrame, metric: str, title: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--seeds", type=int, default=10)
-    parser.add_argument("--model", choices=["linear", "gbm"], default="linear")
+    parser.add_argument("--model", choices=["linear", "linear_by_stage", "gbm"], default="linear")
     parser.add_argument("--athletes", type=int, default=20_000)
     args = parser.parse_args()
 
