@@ -4,7 +4,7 @@
 **Email:** samuele.gasbarro@studio.unibo.it
 **Matriculation number (matricola):** 0001181115
 **Course:** Ethics in AI, University of Bologna
-**Document:** Project report (draft v0.3, work in progress)
+**Document:** Project report (draft v0.4, work in progress)
 
 ---
 
@@ -72,13 +72,22 @@ performance of each athlete in it, and the number of earlier selections.
   ("biased scout").
 - *ML selectors*: a logistic/linear model or gradient boosting trained on the logs of past cohorts
   (Section 4.2).
-- *Mitigations* (RQ3, planned): relative-age-adjusted scores, bio-banding, birth-quarter quotas,
-  rotating selection slots.
+- *Mitigations* (RQ3), each wrapping a base selector (scout or ML):
+  - *relative-age-adjusted scores*: the within-pool linear trend of the scores on birth position
+    is estimated and a share (the strength) of it is subtracted;
+  - *birth-quarter quotas*: a share of the slots is reserved to each birth quarter in proportion
+    to its size in the pool, filled by the best scores within the quarter;
+  - *bio-banding*: the same, with three bands of *estimated* maturation (error sd 0.5, redrawn at
+    each stage) instead of birth quarters, so that athletes compete with peers of similar maturity;
+  - *rotating selection slots*: at the development stages (not the final one) a share of the
+    slots goes to athletes drawn at random among the next k below the cut, which spreads training
+    exposure over more athletes.
 
 **Metrics (latent talent known).** With "high talent" meaning the top 10% of T:
 
 - *Talent loss*: share of high-talent athletes not selected, overall and by birth quarter, at the
-  final stage and at every stage; *equal-opportunity gap*: largest difference in talent loss
+  final stage and at every stage; the loss among Q4 athletes is the harm named in the abstract
+  (talented athletes born late in the year who are excluded); *equal-opportunity gap*: largest difference in talent loss
   across quarters.
 - *Selection-rate ratio* Q1/Q4 among all athletes (1 means birth date plays no role); this
   measures *disparity*, which is not the same as *harm*: a selector can increase the ratio and
@@ -106,7 +115,7 @@ Trustworthy AI requirements addressed: fairness and non-discrimination (main foc
 
 ### 4.1 Package and build
 
-Python package `rae` (NumPy, pandas, scikit-learn, SciPy), tested with pytest and linted with ruff;
+Python package `rae` (NumPy, pandas, scikit-learn, SciPy, Matplotlib), tested with pytest and linted with ruff;
 Makefile as build automation; continuous integration (lint and tests) on every push and merge
 request. Runs are seeded, and athletes, noise, dropout and selector draws (e.g., scout judgement
 error) come from separate random streams, so that selectors compared under the same seed face
@@ -114,7 +123,9 @@ identical athletes (common random numbers). See `README.md` for the repository l
 
 At each stage the pipeline builds a *stage context* (stage, pool, observed-performance history,
 earlier selections, selector random stream) and asks the selector for one score per athlete; the
-top k_s scores are selected. New selectors and mitigations only need to implement this interface.
+top k_s scores are selected. New selectors only need to implement this interface; selectors that
+decide *who* is selected in another way (quotas, bands, rotating slots) can also return the chosen
+positions directly, and the pipeline checks that they are k distinct members of the pool.
 
 ### 4.2 Stage logs and learning selectors
 
@@ -127,7 +138,7 @@ in the selection year) can be withheld or added, to test fairness through unawar
 labelling regimes are implemented: *decisions* (label = past selection decision of the scout) and
 *later performance* (label = performance observed at the next stage, available only for athletes
 still in the system, a selective-labels problem). Models are a linear/logistic model (default)
-and gradient boosting.
+and gradient boosting. The feature set can be restricted, which is used for the ablation study.
 
 ### 4.3 Retraining across cohorts
 
@@ -151,13 +162,25 @@ Written before the experiments, in a test-driven spirit:
   memory it also increases talent loss and regret (large cohort, strong loop);
 - a decision-imitation model reproduces a noiseless historical selector (overlap above 95-98%);
 - a scout without memory is exactly the memoryless selector; the observed-performance history
-  is complete and consistent with the earlier stages.
+  is complete and consistent with the earlier stages;
+- every mitigation at strength 0 reproduces its base selector; relative-age adjustment removes the
+  linear birth trend exactly; quotas and bands fill every group in proportion; rotating slots
+  only rotate below the cut and leave the final stage alone; relative-age adjustment, quotas and
+  bio-banding cut the scout's Q1/Q4 ratio by at least 40%; rotation spreads exposure over more
+  athletes.
+
+### 4.5 Experiments and figures
+
+Each research question has a script in `experiments/` (`make baseline`, `make rq1`, `make rq2`,
+`make ablation`, `make rq3`); they write one CSV row per run to `results/` (not tracked), and
+`make figures` draws the report figures from those files into `report/figures/`. Shared settings
+(scout presets, exposure weights) live in `experiments/common.py`.
 
 ## 5. Experiments and results
 
-All numbers in this section are **preliminary**: placeholder parameters (Section 6), linear
-models, 20,000 athletes per cohort, 20 seeds for the baseline and RQ1 and 10 seeds for RQ2. They
-will be re-run, also with gradient boosting, once the parameters are justified.
+All numbers in this section are **preliminary**: placeholder parameters (Section 6), 20,000
+athletes per cohort, 20 seeds (10 for RQ2), linear models unless stated. They will be re-run once
+the parameters are justified and complemented by a sensitivity study.
 
 ### 5.1 Baseline: memory and the feedback loop
 
@@ -181,26 +204,60 @@ maturation-heavy impressions alive (ratio 4.46 against 2.73).
 
 ### 5.2 RQ1: amplification by ML selectors
 
-Q1/Q4 ratio on a fresh test cohort, loop off, mean over 20 seeds; in brackets the paired difference
-with the historical selector, and the talent loss:
+![RQ1](figures/rq1_ratio.png)
 
-| Selector | Historical: scout | Historical: biased scout |
-|---|---|---|
-| Historical selector | 4.65 (loss 0.546) | 9.59 (loss 0.635) |
-| ML decisions, no birth info | 4.91 (+0.26 ± 0.15; loss 0.506) | 5.03 (-4.56 ± 0.30; loss 0.510) |
-| ML decisions, birth info | 4.93 (+0.28 ± 0.15; loss 0.507) | 11.16 (+1.57 ± 0.38; loss 0.543) |
-| ML later perf., no birth info | 4.94 (+0.29 ± 0.14; loss 0.507) | 4.93 (-4.66 ± 0.32; loss 0.507) |
-| ML later perf., birth info | 6.16 (+1.51 ± 0.22; loss 0.515) | 6.07 (-3.52 ± 0.30; loss 0.515) |
+Q1/Q4 ratio on a fresh test cohort, loop off, mean over 20 seeds; in brackets the paired
+difference with the historical selector. Linear/logistic models, and gradient boosting (GBM):
 
-Three mechanisms appear. (i) *Denoising*: a model imitating a noisy scout keeps the systematic part
-of the judgement and drops the noise, so the disparity grows slightly while talent loss falls.
-(ii) *Proxy reconstruction*: the biased scout favours physically mature athletes, which the model
-cannot see; without birth information it cannot reproduce that bias, while with birth information
-it uses birth date as a proxy for maturation and amplifies the bias beyond the historical
-selector (11.2 against 9.6). (iii) *Label bias*: performance at the next stage still contains
-maturation, so a model trained to predict it learns to reward early birth when birth information
-is available, whichever selector produced the data. With the loop on the picture is the same
-(e.g., later performance with birth info: +0.98 ± 0.11 over the scout).
+| Selector | Scout, linear | Scout, GBM | Biased scout, linear | Biased scout, GBM |
+|---|---|---|---|---|
+| Historical selector | 4.65 | 4.65 | 9.59 | 9.59 |
+| ML decisions, no birth info | 4.91 (+0.26 ± 0.15) | 4.89 (+0.24 ± 0.15) | 5.03 (-4.56) | 5.04 (-4.55) |
+| ML decisions, birth info | 4.93 (+0.28 ± 0.15) | 4.87 (+0.22 ± 0.17) | 11.16 (+1.57 ± 0.38) | 11.56 (+1.97 ± 0.58) |
+| ML later perf., no birth info | 4.94 (+0.29 ± 0.14) | 4.89 (+0.25 ± 0.13) | 4.93 (-4.66) | 4.89 (-4.70) |
+| ML later perf., birth info | 6.16 (+1.51 ± 0.22) | 4.43 (-0.22 ± 0.20) | 6.07 (-3.52) | 4.49 (-5.10) |
+
+Every ML selector loses fewer talented athletes than the selector that produced its training data
+(talent loss 0.50-0.55, against 0.55 for the scout and 0.64 for the biased scout). Three
+mechanisms appear.
+
+1. *Denoising.* A model imitating a noisy scout keeps the systematic part of the judgement and
+   drops the noise: disparity grows slightly (+0.2 to +0.3 in the ratio, with both model
+   classes) while talent loss falls. Amplification of disparity and harm do not go together.
+2. *Proxy reconstruction.* The biased scout favours physically mature athletes, which the model
+   cannot see. Without birth information the model cannot reproduce that bias (fairness through
+   unawareness works here, ratio 9.6 to 5.0); with birth information it uses birth date as a
+   proxy for maturation and amplifies the bias beyond the historical selector (+1.6 linear,
+   +2.0 GBM). This result does not depend on the model class.
+3. *Label bias, mediated by the model specification.* Performance at the next stage still contains
+   maturation, with a weight that falls from stage to stage. A diagnostic fit on the scout's logs
+   gives a birth coefficient that rewards early birth when predicting stage 1 from stage 0
+   (-0.32 per unit of birth position) and corrects in the opposite direction when predicting
+   stage 2 from stage 1 (+0.11). The linear model pools all stages into one coefficient and
+   carries the early-stage label bias into the final selection (+1.5); gradient boosting fits
+   stage-specific effects and does not amplify (-0.2 ± 0.2). Whether a model trained on later
+   performance amplifies the RAE is therefore a property of the model as well as of the data,
+   which argues for auditing each deployed model rather than the data alone.
+
+With the loop on the picture is the same (e.g., decisions with birth info on biased-scout data:
++1.3 linear, +1.5 GBM; later performance with birth info on scout data: +1.0 linear, -0.3 GBM).
+
+**Ablation: which features carry birth information?** In the training logs, birth position is
+correlated with every performance feature (current performance -0.29, history mean -0.34, number
+of earlier selections -0.20); together they explain 12.5% of its variance. Removing features from
+birth-blind models (paired change of the ratio vs the scout, loop off):
+
+| Features (no birth info) | Decisions | Later performance | Talent loss |
+|---|---|---|---|
+| All | +0.26 ± 0.15 | +0.29 ± 0.14 | 0.506 |
+| Without number of earlier selections | +0.25 ± 0.15 | +0.25 ± 0.15 | 0.506 |
+| Without history mean | -0.67 ± 0.11 | -0.71 ± 0.10 | 0.519 |
+| Current performance and stage only | -1.91 ± 0.08 | -1.91 ± 0.08 | 0.555 |
+
+The proxy is the *memory* of past performance, not the count of past selections, as conjectured
+in an earlier draft. Removing it lowers the disparity but raises talent loss: the history mean
+also carries most of the information about talent, so "removing the proxy" is itself a
+fairness-efficiency trade-off.
 
 ### 5.3 RQ2 across stages
 
@@ -222,10 +279,47 @@ c = 1), for the reason given in Section 5.1.
 ### 5.4 RQ2 across cohorts
 
 Moving from the scout to an ML selector causes a one-off level shift at generation 1 (e.g., ratio
-4.43 to 6.33 for later performance with birth info); retraining on its own decisions for four
-further generations does not compound the ratio further (6.25-6.51), and talent loss stays flat.
-Cohorts are independent, so the only memory across generations is the model, and with the current
-features it reaches a fixed point after one retraining.
+4.43 to 6.33 for the linear model on later performance with birth info); retraining on its own
+decisions for four further generations does not compound the ratio further (6.25-6.51), and
+talent loss stays flat. Cohorts are independent, so the only memory across generations is the
+model, and with the current features it reaches a fixed point after one retraining.
+
+### 5.5 RQ3: mitigations
+
+![RQ3](figures/rq3_pareto.png)
+
+Paired change with respect to the unmitigated selector, loop on (c = 1), mean over 20 seeds:
+
+| Mitigation | Scout: Q1/Q4 | Scout: d Q4 loss | Scout: d regret | ML: Q1/Q4 | ML: d Q4 loss | ML: d regret |
+|---|---|---|---|---|---|---|
+| None | 4.89 | - | - | 5.87 | - | - |
+| RA-adjusted 0.5 | 1.94 | -0.141 | -0.052 | 1.60 | -0.200 | -0.071 |
+| RA-adjusted 1.0 | 0.99 | -0.251 | -0.065 | 1.01 | -0.284 | -0.078 |
+| Quota 0.5 | 3.74 | -0.046 | -0.011 | 3.87 | -0.070 | -0.015 |
+| Quota 1.0 | 1.00 | -0.246 | -0.060 | 1.00 | -0.282 | -0.072 |
+| Bio-banding 0.5 | 3.75 | -0.061 | -0.050 | 4.31 | -0.067 | -0.051 |
+| Bio-banding 1.0 | 1.61 | -0.219 | -0.144 | 1.76 | -0.240 | -0.142 |
+| Rotating 0.2 | 4.95 | +0.002 | +0.007 | 6.07 | +0.010 | +0.017 |
+| Rotating 0.4 | 4.89 | +0.001 | +0.016 | 6.27 | +0.020 | +0.045 |
+
+(ML = linear model trained on later performance with birth info, the strongest amplifier in RQ1.
+95% CI half-widths are about 0.01 for the changes in loss and 0.005 for regret.)
+
+- *Relative-age adjustment and full quotas* remove the disparity (ratio about 1, equal-opportunity
+  gap from 0.44 to 0.04) and cut the loss among Q4 athletes from 0.77 to about 0.51, **and
+  improve efficiency** (lower regret). In this model the RAE is pure error with respect to talent, so
+  removing it can only help; there is no fairness-efficiency trade-off to pay.
+- *Bio-banding* is the most efficient mitigation (regret -0.14) because it removes the maturation
+  advantage within birth quarters too, which a birth-based correction cannot see; it leaves some
+  disparity (ratio about 1.6) because exposure and memory still favour early-born athletes.
+- *Rotating slots* do not help: with the current parameters the loop has little effect on talent
+  loss (Section 5.3), so spreading exposure only costs efficiency.
+- Results are similar with the loop off.
+
+The absence of a trade-off is a consequence of an assumption, not a finding about the real world:
+the maturation advantage is modelled as transient and unrelated to talent. If part of it predicted
+adult performance, the mitigations would have a cost; this is the first item of the sensitivity
+study.
 
 ## 6. Modelling decisions
 
@@ -245,6 +339,12 @@ features it reaches a fixed point after one retraining.
   RQ2 is the retraining of the model on its own outputs. No other persistence is modelled.
 - **D4. Talent loss at every stage**, not only at the final one, as RQ2 asks about stages.
 - **D5. Student-t confidence intervals**, since the number of seeds is small (10-30).
+- **D6. Mitigations as wrappers.** Every mitigation wraps a base selector, so the same mitigation
+  can be applied to a scout or to an ML model and compared on the same test cohort. Bio-banding
+  uses an estimate of maturation with error, not the true value; rotation is limited to the
+  development stages, since the final squad should not contain random picks.
+- **D7. Report figures are tracked.** Figures are generated by `make figures` but kept in
+  `report/figures/`, so that the Markdown report renders on its own.
 
 ### 6.2 Open decisions
 
@@ -255,9 +355,12 @@ features it reaches a fixed point after one retraining.
   RAE effect sizes). The size of the loop effect on talent loss (Section 5.3) depends on them.
 - **Perceived maturity.** The biased scout weighs true maturation M; a noisy perception of M
   would be more realistic and is also needed for bio-banding (RQ3).
-- **Proxy through past selections.** Whether the number of earlier selections and the history
-  mean carry birth information into models without birth date must be confirmed with a feature
-  ablation.
+- **Model specification of the ML selectors.** A linear model with stage interactions would test
+  directly the explanation of the linear/GBM difference in RQ1 (Section 5.2).
+- **Persistent maturation advantage.** Part of the maturation effect could be allowed to predict
+  adult performance, to measure the cost of the mitigations (Section 5.5).
+- **Feedback-loop strength.** The loop barely changes overall talent loss with c up to 2; a stronger
+  loop (larger exposure gain, lower dropout) is needed to test whether rotating slots can help.
 - **Selective labels.** Dropped-out athletes have no later performance; the effect of this on the
   trained models is not yet analysed.
 - **Definition of "high talent"** (top 10% by default) and its sensitivity.

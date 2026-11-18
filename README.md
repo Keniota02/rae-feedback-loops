@@ -21,10 +21,11 @@ conda activate rae
 make install        # installs the package in editable mode with dev tools
 make test           # runs the test suite
 make lint           # runs ruff
-make experiments    # runs baseline, RQ1 and RQ2 (writes CSV files to results/)
+make experiments    # runs baseline, RQ1, RQ2, ablation and RQ3 (writes CSV files to results/)
+make figures        # draws the report figures from results/ into report/figures/
 ```
 
-Single experiments: `make baseline`, `make rq1`, `make rq2`. The scripts accept options, e.g.
+Single experiments: `make baseline`, `make rq1`, `make rq2`, `make ablation`, `make rq3`. The scripts accept options, e.g.
 `python experiments/run_rq1.py --seeds 20 --model gbm` (see `--help`).
 
 Without `make` (e.g., on Windows), run the underlying commands directly:
@@ -35,10 +36,11 @@ Without `make` (e.g., on Windows), run the underlying commands directly:
 
 ```
 src/rae/          simulator: config, athletes, selectors (oracle, scouts), pipeline,
-                  learning (ML selectors), generations (retraining loop), metrics, stats
+                  learning (ML selectors), generations (retraining loop), mitigations,
+                  metrics, stats
 tests/            unit tests and model invariants
 experiments/      experiment scripts and shared settings (results go to results/, ignored by git)
-report/           project report (Markdown), extended during development
+report/           project report (Markdown), extended during development, and its figures
 ```
 
 ## Workflow
