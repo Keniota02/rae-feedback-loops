@@ -4,7 +4,7 @@
 **Email:** samuele.gasbarro@studio.unibo.it
 **Matriculation number (matricola):** 0001181115
 **Course:** Ethics in AI, University of Bologna
-**Document:** Project report (draft v0.4, work in progress)
+**Document:** Project report (draft v0.5, work in progress)
 
 ---
 
@@ -52,12 +52,28 @@ selected at a later stage. The exposure gap opens between them and the athletes 
 selected, so the loop acts through these re-entries: in a pure pyramid (p = 1) every athlete in
 the pool has the same exposure and the loop has no effect on the ranking.
 
+**Parameters and calibration.** Italian youth football groups players by calendar year of birth
+(FIGC, 2025), so the cut-off is 1 January and Q1 is January-March. The correlation between
+relative age and maturation follows from growth data: maturity offset is chronological age minus
+age at peak height velocity (APHV); within a selection year chronological age has sd
+1/sqrt(12) = 0.29 years, and APHV in male soccer players has sd of about 0.9 years
+(13.6 ± 0.9 years; Malina et al., 2024), so rho = 0.29 / sqrt(0.29^2 + 0.9^2) = 0.3. The weight of
+maturation b_0 is the one free parameter that sets the size of the RAE, and it is calibrated: with
+b_0 = 2 the scout's Q1/Q4 ratio at the final stage (top 10% of the cohort) is about 3 (2.96
+without and 3.02 with the loop), between the pooled estimate across competitive levels (odds ratio
+1.65; Cobley et al., 2009, as summarised by Smith et al., 2018) and estimates for professional
+academies (3 to 5; Lovell et al., 2015). The other parameters (a = 1, sigma = 1, delta = 0.7,
+c = 1, p = 0.2, stage shares 30/20/10%, scout memory 1 and judgement noise 0.5) are not
+calibrated and are covered by the sensitivity study (Section 5.6).
+
 **Ground truth and the meaning of exposure.** Harm is always measured against latent talent T,
 which is independent of birth date by construction. Exposure raises *observed performance* but not
 T: it is the head start that coaching and playing time give to athletes who were selected early.
 This keeps the definition of talent loss unambiguous. (The alternative reading, exposure as real
 skill growth, leads to the same equations for P and only changes the interpretation; it is
-discussed in Section 6.)
+discussed in Section 6.) The sensitivity study also relaxes the assumption that the maturation
+advantage is transient: with a weight kappa > 0 the selection target becomes adult potential
+T + kappa * M, so that part of the early maturers' advantage is real.
 
 **Selectors.** Every selector receives the same view of a stage: the pool, the history of observed
 performance of each athlete in it, and the number of earlier selections.
@@ -70,8 +86,8 @@ performance of each athlete in it, and the number of earlier selections.
   towards athletes who look physically mature. The historical data on which ML models are
   trained are produced by a scout (m = 1, tau = 0.5), with lambda = 0 ("scout") or lambda = 0.5
   ("biased scout").
-- *ML selectors*: a logistic/linear model or gradient boosting trained on the logs of past cohorts
-  (Section 4.2).
+- *ML selectors*: a logistic/linear model (pooled over stages or one per stage) or gradient
+  boosting, trained on the logs of past cohorts (Section 4.2).
 - *Mitigations* (RQ3), each wrapping a base selector (scout or ML):
   - *relative-age-adjusted scores*: the within-pool linear trend of the scores on birth position
     is estimated and a share (the strength) of it is subtracted;
@@ -137,8 +153,10 @@ the number of earlier selections (training exposure) and the stage; birth inform
 in the selection year) can be withheld or added, to test fairness through unawareness. Two
 labelling regimes are implemented: *decisions* (label = past selection decision of the scout) and
 *later performance* (label = performance observed at the next stage, available only for athletes
-still in the system, a selective-labels problem). Models are a linear/logistic model (default)
-and gradient boosting. The feature set can be restricted, which is used for the ablation study.
+still in the system, a selective-labels problem). Models are a linear/logistic model pooled over
+stages (default), the same model fitted separately for each stage (equivalent to full
+interactions with the stage; a stage without training rows uses the closest earlier one), and
+gradient boosting. The feature set can be restricted, which is used for the ablation study.
 
 ### 4.3 Retraining across cohorts
 
@@ -163,6 +181,8 @@ Written before the experiments, in a test-driven spirit:
 - a decision-imitation model reproduces a noiseless historical selector (overlap above 95-98%);
 - a scout without memory is exactly the memoryless selector; the observed-performance history
   is complete and consistent with the earlier stages;
+- with a persistent maturation advantage (kappa > 0) the target changes but the athletes do not,
+  and the oracle still loses nobody;
 - every mitigation at strength 0 reproduces its base selector; relative-age adjustment removes the
   linear birth trend exactly; quotas and bands fill every group in proportion; rotating slots
   only rotate below the cut and leave the final stage alone; relative-age adjustment, quotas and
@@ -171,8 +191,8 @@ Written before the experiments, in a test-driven spirit:
 
 ### 4.5 Experiments and figures
 
-Each research question has a script in `experiments/` (`make baseline`, `make rq1`, `make rq2`,
-`make ablation`, `make rq3`); they write one CSV row per run to `results/` (not tracked), and
+Each research question has a script in `experiments/` (`make calibration`, `make baseline`,
+`make rq1`, `make rq2`, `make ablation`, `make rq3`, `make sensitivity`); they write one CSV row per run to `results/` (not tracked), and
 `make figures` draws the report figures from those files into `report/figures/`. Shared settings
 (scout presets, exposure weights) live in `experiments/common.py`.
 
@@ -345,25 +365,24 @@ study.
   development stages, since the final squad should not contain random picks.
 - **D7. Report figures are tracked.** Figures are generated by `make figures` but kept in
   `report/figures/`, so that the Markdown report renders on its own.
+- **D8. Parameters from data where possible, calibration otherwise.** rho is derived from the
+  variability of age at peak height velocity; b_0 is calibrated to a published RAE magnitude;
+  the remaining parameters are varied in the sensitivity study. Earlier drafts used rho = 0.6
+  and b_0 = 1, which overstated the link between birth date and maturation by a factor of two.
+- **D9. Persistent maturation as a sensitivity parameter.** Whether early maturation predicts
+  adult performance is uncertain, so it is not part of the default model but is varied (kappa),
+  because it decides whether mitigations have a cost.
+- **D10. Per-stage linear model.** Added to test the explanation of the difference between the
+  pooled linear model and gradient boosting in RQ1.
 
 ### 6.2 Open decisions
 
-- **Cut-off rule.** Which selection-year cut-off the Italian youth categories use (to be verified
-  and cited), and how it affects the birth-quarter definition.
-- **Parameter values.** Defaults in `SimConfig` and in the scout presets are placeholders; each
-  needs a justification or a sensitivity range (and, as a stretch goal, calibration to published
-  RAE effect sizes). The size of the loop effect on talent loss (Section 5.3) depends on them.
 - **Perceived maturity.** The biased scout weighs true maturation M; a noisy perception of M
-  would be more realistic and is also needed for bio-banding (RQ3).
-- **Model specification of the ML selectors.** A linear model with stage interactions would test
-  directly the explanation of the linear/GBM difference in RQ1 (Section 5.2).
-- **Persistent maturation advantage.** Part of the maturation effect could be allowed to predict
-  adult performance, to measure the cost of the mitigations (Section 5.5).
-- **Feedback-loop strength.** The loop barely changes overall talent loss with c up to 2; a stronger
-  loop (larger exposure gain, lower dropout) is needed to test whether rotating slots can help.
-- **Selective labels.** Dropped-out athletes have no later performance; the effect of this on the
-  trained models is not yet analysed.
-- **Definition of "high talent"** (top 10% by default) and its sensitivity.
+  would be more realistic.
+- **Selective labels.** Dropped-out athletes have no later performance; how much this, rather
+  than the label itself, drives the behaviour of the later-performance models is not separated.
+- **Female sport and other sports.** The calibration targets male football; the RAE is smaller in
+  female sport (Smith et al., 2018), which corresponds to a smaller b_0.
 
 ## 7. Limitations
 
