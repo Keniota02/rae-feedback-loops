@@ -35,8 +35,15 @@ FEATURES = ("observed", "history_mean", "times_selected", "stage")
 BIRTH_FEATURE = "birth_frac"
 
 
-def feature_names(use_birth_info: bool) -> tuple[str, ...]:
-    return (*FEATURES, BIRTH_FEATURE) if use_birth_info else FEATURES
+def feature_names(use_birth_info: bool, features: Sequence[str] | None = None) -> tuple[str, ...]:
+    """Columns used by a model: ``features`` (default: all of ``FEATURES``) plus birth info."""
+    chosen = tuple(FEATURES if features is None else features)
+    unknown = set(chosen) - set(FEATURES)
+    if unknown:
+        raise ValueError(f"unknown features: {sorted(unknown)}")
+    if not chosen and not use_birth_info:
+        raise ValueError("a model needs at least one feature")
+    return (*chosen, BIRTH_FEATURE) if use_birth_info else chosen
 
 
 def _features(
@@ -45,23 +52,29 @@ def _features(
     history: np.ndarray,
     times_selected: np.ndarray,
     stage: int,
-    use_birth_info: bool,
+    names: Sequence[str],
 ) -> np.ndarray:
-    columns = [
-        history[-1],
-        history.mean(axis=0),
-        times_selected.astype(float),
-        np.full(pool.size, float(stage)),
-    ]
-    if use_birth_info:
-        columns.append(athletes.birth_frac[pool])
-    return np.column_stack(columns)
+    available = {
+        "observed": lambda: history[-1],
+        "history_mean": lambda: history.mean(axis=0),
+        "times_selected": lambda: times_selected.astype(float),
+        "stage": lambda: np.full(pool.size, float(stage)),
+        BIRTH_FEATURE: lambda: athletes.birth_frac[pool],
+    }
+    return np.column_stack([available[name]() for name in names])
 
 
 def build_training_data(
-    results: Sequence[SimulationResult], regime: Regime, use_birth_info: bool
+    results: Sequence[SimulationResult],
+    regime: Regime,
+    use_birth_info: bool,
+    features: Sequence[str] | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Turn the stage logs of past cohorts into a supervised dataset ``(X, y)``."""
+    """Turn the stage logs of past cohorts into a supervised dataset ``(X, y)``.
+
+    Columns follow ``feature_names(use_birth_info, features)``.
+    """
+    names = feature_names(use_birth_info, features)
     if regime not in ("decisions", "later_performance"):
         raise ValueError(f"unknown regime: {regime!r}")
     xs: list[np.ndarray] = []
@@ -76,7 +89,7 @@ def build_training_data(
                 record.history,
                 record.times_selected_before,
                 record.stage,
-                use_birth_info,
+                names,
             )
             if regime == "decisions":
                 xs.append(x)
@@ -106,10 +119,17 @@ def _make_model(kind: ModelKind, regime: Regime, seed: int):
 class MLSelector:
     """Ranks athletes with a model trained on past cohorts."""
 
-    def __init__(self, model, regime: Regime, use_birth_info: bool) -> None:
+    def __init__(
+        self,
+        model,
+        regime: Regime,
+        use_birth_info: bool,
+        features: Sequence[str] | None = None,
+    ) -> None:
         self.model = model
         self.regime = regime
         self.use_birth_info = use_birth_info
+        self.feature_names = feature_names(use_birth_info, features)
 
     def scores(self, ctx: StageContext) -> np.ndarray:
         x = _features(
@@ -118,7 +138,7 @@ class MLSelector:
             ctx.history,
             ctx.times_selected,
             ctx.stage,
-            self.use_birth_info,
+            self.feature_names,
         )
         if self.regime == "decisions":
             return self.model.predict_proba(x)[:, 1]
@@ -132,8 +152,9 @@ def train_selector(
     use_birth_info: bool,
     model: ModelKind = "linear",
     seed: int = 0,
+    features: Sequence[str] | None = None,
 ) -> MLSelector:
-    """Fit a selector on the logs of past cohorts."""
-    x, y = build_training_data(results, regime, use_birth_info)
+    """Fit a selector on the logs of past cohorts (``features`` = None uses all of them)."""
+    x, y = build_training_data(results, regime, use_birth_info, features)
     fitted = _make_model(model, regime, seed).fit(x, y)
-    return MLSelector(fitted, regime, use_birth_info)
+    return MLSelector(fitted, regime, use_birth_info, features)

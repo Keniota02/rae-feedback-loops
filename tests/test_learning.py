@@ -104,3 +104,31 @@ def test_oracle_still_beats_every_ml_selector_on_regret():
     for regime in ("decisions", "later_performance"):
         selector = train_selector(history, regime=regime, use_birth_info=True)
         assert regret(simulate(test, selector)) > 0.0
+
+
+def test_feature_subsets_select_the_columns():
+    history = _history(SMALL, n=1)
+    x_all, _ = build_training_data(history, "decisions", use_birth_info=True)
+    x_sub, _ = build_training_data(
+        history, "decisions", use_birth_info=True, features=("observed", "stage")
+    )
+    assert x_sub.shape[1] == 3
+    assert np.array_equal(x_sub, x_all[:, [0, 3, 4]])  # observed, stage, birth_frac
+
+
+def test_invalid_feature_subsets_are_rejected():
+    history = _history(SMALL, n=1)
+    with pytest.raises(ValueError):
+        build_training_data(history, "decisions", use_birth_info=False, features=("height",))
+    with pytest.raises(ValueError):
+        build_training_data(history, "decisions", use_birth_info=False, features=())
+
+
+def test_selector_trained_on_a_subset_scores_with_the_same_subset():
+    history = _history(SMALL, n=2)
+    selector = train_selector(
+        history, regime="later_performance", use_birth_info=False, features=("observed",)
+    )
+    assert selector.feature_names == ("observed",)
+    res = simulate(replace(SMALL, seed=50), selector)
+    assert res.selected.sum() == round(SMALL.stage_fractions[-1] * SMALL.n_athletes)
