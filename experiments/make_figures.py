@@ -214,7 +214,7 @@ def rq3_figure(runs: pd.DataFrame, out: Path, exposure: float = 1.0) -> None:
     for ax, ends in zip(axes, all_ends, strict=True):
         _label_ends(ax, ends, left=frozenset({"RA-adjusted"}))
     axes[0].set_ylabel("Talent loss among Q4 athletes")
-    axes[1].legend(loc="lower right", fontsize=8)
+    axes[1].legend(loc="upper left", fontsize=8)
     fig.suptitle(
         f"RQ3. Mitigations at increasing strength (feedback loop on, c = {exposure:g})",
         x=0.01,
