@@ -101,6 +101,8 @@ def summarize(res: SimulationResult) -> dict[str, float]:
     return {
         "selection_rate_ratio_q1_q4": selection_rate_ratio(res),
         "overall_talent_loss": overall_talent_loss(res),
+        "talent_loss_q1": float(talent_loss_by_quarter(res)[0]),
+        "talent_loss_q4": float(talent_loss_by_quarter(res)[3]),
         "equal_opportunity_gap": equal_opportunity_gap(res),
         "mean_selected_talent": mean_selected_talent(res),
         "regret": regret(res),

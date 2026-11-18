@@ -1,7 +1,9 @@
 """Selectors rank the athletes in the candidate pool at a given stage.
 
 The pipeline hands every selector a :class:`StageContext`; new selectors (machine-learning
-models, mitigations) only need to implement ``scores(ctx)``.
+models, mitigations) only need to implement ``scores(ctx)``, and the pipeline selects the ``k``
+highest scores. A selector that needs to decide *who* is selected in another way (quotas,
+bands, rotating slots) can also implement ``select(ctx, k)``, returning positions in the pool.
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ class StageContext:
     """
 
     stage: int
+    n_stages: int
     pool: np.ndarray
     athletes: Athletes
     history: np.ndarray  # observed performance, shape (stage + 1, pool.size); last row = now
@@ -35,11 +38,33 @@ class StageContext:
         """Observed performance at the current stage."""
         return self.history[-1]
 
+    @property
+    def is_final(self) -> bool:
+        return self.stage == self.n_stages - 1
+
 
 class Selector(Protocol):
     """Returns one score per athlete in ``ctx.pool``; the highest scores are selected."""
 
     def scores(self, ctx: StageContext) -> np.ndarray: ...
+
+
+def top_k(scores: np.ndarray, k: int) -> np.ndarray:
+    """Positions of the ``k`` highest scores (ties broken by position, deterministically)."""
+    return np.argsort(-scores, kind="stable")[:k]
+
+
+def choose(selector: Selector, ctx: StageContext, k: int) -> np.ndarray:
+    """Positions in the pool of the ``k`` athletes selected by ``selector``."""
+    select = getattr(selector, "select", None)
+    if select is None:
+        return top_k(np.asarray(selector.scores(ctx)), k)
+    chosen = np.asarray(select(ctx, k), dtype=int)
+    if chosen.size != k or np.unique(chosen).size != k:
+        raise ValueError(f"select() must return {k} distinct positions, got {chosen.size}")
+    if chosen.size and (chosen.min() < 0 or chosen.max() >= ctx.pool.size):
+        raise ValueError("select() returned positions outside the pool")
+    return chosen
 
 
 class OracleSelector:

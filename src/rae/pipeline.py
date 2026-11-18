@@ -16,7 +16,7 @@ import numpy as np
 
 from rae.athletes import Athletes, generate_athletes
 from rae.config import SimConfig
-from rae.selectors import Selector, StageContext
+from rae.selectors import Selector, StageContext, choose
 
 
 @dataclass(frozen=True)
@@ -82,14 +82,14 @@ def simulate(cfg: SimConfig, selector: Selector) -> SimulationResult:
         before = times_selected[pool].copy()
         ctx = StageContext(
             stage=stage,
+            n_stages=n_stages,
             pool=pool,
             athletes=athletes,
             history=history,
             times_selected=before,
             rng=selector_rng,
         )
-        scores = selector.scores(ctx)
-        top = np.argsort(-scores, kind="stable")[:k]
+        top = choose(selector, ctx, k)
 
         selected = np.zeros(n, dtype=bool)
         selected[pool[top]] = True

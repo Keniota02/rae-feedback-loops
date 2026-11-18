@@ -15,6 +15,7 @@ def _context(history: np.ndarray, seed: int = 0) -> StageContext:
     )
     return StageContext(
         stage=history.shape[0] - 1,
+        n_stages=3,
         pool=np.arange(n),
         athletes=athletes,
         history=history,
