@@ -18,6 +18,7 @@ from collections.abc import Sequence
 from typing import Literal
 
 import numpy as np
+from sklearn.base import clone
 from sklearn.ensemble import HistGradientBoostingClassifier, HistGradientBoostingRegressor
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.pipeline import make_pipeline
@@ -28,7 +29,7 @@ from rae.pipeline import SimulationResult
 from rae.selectors import StageContext
 
 Regime = Literal["decisions", "later_performance"]
-ModelKind = Literal["linear", "gbm"]
+ModelKind = Literal["linear", "linear_by_stage", "gbm"]
 
 
 FEATURES = ("observed", "history_mean", "times_selected", "stage")
@@ -104,11 +105,61 @@ def build_training_data(
     return np.vstack(xs), np.concatenate(ys)
 
 
-def _make_model(kind: ModelKind, regime: Regime, seed: int):
-    if kind == "linear":
+class PerStageModel:
+    """One copy of ``base`` per stage, fitted on the rows of that stage.
+
+    A pooled linear model applies the same coefficients at every stage; this one lets every
+    coefficient depend on the stage (equivalent to full stage interactions). A stage with no
+    training rows (e.g., the last stage under the later-performance regime) uses the model of
+    the closest earlier stage.
+    """
+
+    def __init__(self, base, stage_column: int) -> None:
+        self.base = base
+        self.stage_column = stage_column
+        self.models: dict[int, object] = {}
+
+    def fit(self, x: np.ndarray, y: np.ndarray) -> PerStageModel:
+        stages = x[:, self.stage_column].astype(int)
+        self.models = {
+            int(s): clone(self.base).fit(x[stages == s], y[stages == s]) for s in np.unique(stages)
+        }
+        return self
+
+    def _model_for(self, stage: int):
+        fitted = sorted(self.models)
+        earlier = [s for s in fitted if s <= stage]
+        return self.models[earlier[-1] if earlier else fitted[0]]
+
+    def _apply(self, x: np.ndarray, method: str) -> np.ndarray:
+        stages = x[:, self.stage_column].astype(int)
+        out = None
+        for s in np.unique(stages):
+            rows = stages == s
+            part = getattr(self._model_for(int(s)), method)(x[rows])
+            if out is None:
+                out = np.empty((x.shape[0], *part.shape[1:]))
+            out[rows] = part
+        return out
+
+    def predict(self, x: np.ndarray) -> np.ndarray:
+        return self._apply(x, "predict")
+
+    def predict_proba(self, x: np.ndarray) -> np.ndarray:
+        return self._apply(x, "predict_proba")
+
+
+def _make_model(kind: ModelKind, regime: Regime, seed: int, names: Sequence[str] = FEATURES):
+    if kind in ("linear", "linear_by_stage"):
         if regime == "decisions":
-            return make_pipeline(StandardScaler(), LogisticRegression(max_iter=1000))
-        return make_pipeline(StandardScaler(), LinearRegression())
+            base = make_pipeline(StandardScaler(), LogisticRegression(max_iter=1000))
+        else:
+            base = make_pipeline(StandardScaler(), LinearRegression())
+        if kind == "linear":
+            return base
+        if "stage" not in names:
+            raise ValueError("linear_by_stage needs the stage feature")
+        return PerStageModel(base, stage_column=list(names).index("stage"))
     if kind == "gbm":
         if regime == "decisions":
             return HistGradientBoostingClassifier(random_state=seed)
@@ -156,5 +207,6 @@ def train_selector(
 ) -> MLSelector:
     """Fit a selector on the logs of past cohorts (``features`` = None uses all of them)."""
     x, y = build_training_data(results, regime, use_birth_info, features)
-    fitted = _make_model(model, regime, seed).fit(x, y)
+    names = feature_names(use_birth_info, features)
+    fitted = _make_model(model, regime, seed, names).fit(x, y)
     return MLSelector(fitted, regime, use_birth_info, features)

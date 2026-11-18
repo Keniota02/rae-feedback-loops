@@ -1,4 +1,8 @@
-"""Fairness and efficiency metrics. Latent talent is known, so harm can be measured directly."""
+"""Fairness and efficiency metrics. Latent talent is known, so harm can be measured directly.
+
+"Talent" below is the selection target: latent talent T by default, or adult potential
+T + kappa * M when part of the maturation advantage persists into adulthood.
+"""
 
 from __future__ import annotations
 
@@ -41,8 +45,9 @@ def selection_rate_ratio_by_stage(res: SimulationResult) -> np.ndarray:
 
 def high_talent_mask(res: SimulationResult) -> np.ndarray:
     """Athletes in the top ``top_talent_fraction`` of latent talent."""
-    threshold = np.quantile(res.athletes.talent, 1.0 - res.config.top_talent_fraction)
-    return res.athletes.talent >= threshold
+    target = res.athletes.target
+    threshold = np.quantile(target, 1.0 - res.config.top_talent_fraction)
+    return target >= threshold
 
 
 def talent_loss_by_quarter(res: SimulationResult) -> np.ndarray:
@@ -86,13 +91,13 @@ def equal_opportunity_gap(res: SimulationResult) -> float:
 
 def mean_selected_talent(res: SimulationResult) -> float:
     """Efficiency: mean latent talent of the selected cohort."""
-    return float(res.athletes.talent[res.selected].mean())
+    return float(res.athletes.target[res.selected].mean())
 
 
 def regret(res: SimulationResult) -> float:
     """Gap between the mean talent of an oracle cohort of the same size and the actual one."""
     k = int(res.selected.sum())
-    best = np.sort(res.athletes.talent)[::-1][:k].mean()
+    best = np.sort(res.athletes.target)[::-1][:k].mean()
     return float(best - mean_selected_talent(res))
 
 

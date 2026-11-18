@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -16,9 +16,16 @@ class Athletes:
     talent: np.ndarray  # latent talent T, independent of birth date by construction
     birth_frac: np.ndarray  # position in the selection year, in [0, 1); 0 = right after cut-off
     maturation: np.ndarray  # biological maturation M, zero mean and unit variance
+    # Adult potential, the selection target. None means it equals latent talent (the default).
+    potential: np.ndarray | None = field(default=None)
 
     def __len__(self) -> int:
         return int(self.talent.size)
+
+    @property
+    def target(self) -> np.ndarray:
+        """What an ideal selector picks on: adult potential if set, latent talent otherwise."""
+        return self.talent if self.potential is None else self.potential
 
     @property
     def quarter(self) -> np.ndarray:

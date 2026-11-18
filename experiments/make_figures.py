@@ -1,7 +1,8 @@
 """Figures for the report, drawn from the CSV files written by the experiment scripts.
 
 Usage: python experiments/make_figures.py [--results results] [--out report/figures]
-Needs ``rq1_runs_linear.csv``, ``rq2_stages.csv`` and ``rq3_runs_linear.csv``.
+Needs ``rq1_runs_linear.csv``, ``rq2_stages.csv``, ``rq3_runs_linear.csv`` and
+``sensitivity_oat.csv``.
 """
 
 from __future__ import annotations
@@ -213,7 +214,7 @@ def rq3_figure(runs: pd.DataFrame, out: Path, exposure: float = 1.0) -> None:
     for ax, ends in zip(axes, all_ends, strict=True):
         _label_ends(ax, ends, left=frozenset({"RA-adjusted"}))
     axes[0].set_ylabel("Talent loss among Q4 athletes")
-    axes[1].legend(loc="lower right", fontsize=8)
+    axes[1].legend(loc="upper left", fontsize=8)
     fig.suptitle(
         f"RQ3. Mitigations at increasing strength (feedback loop on, c = {exposure:g})",
         x=0.01,
@@ -233,6 +234,48 @@ def rq3_figure(runs: pd.DataFrame, out: Path, exposure: float = 1.0) -> None:
     plt.close(fig)
 
 
+def sensitivity_figure(runs: pd.DataFrame, out: Path) -> None:
+    """Paired change in regret (cost) and in Q4 talent loss (benefit) of each mitigation, as the
+    persistent share kappa of the maturation advantage grows."""
+    data = runs[runs["parameter"] == "adult_maturation_weight"]
+    families = [("RA-adjusted", SERIES[0]), ("quota", SERIES[1]), ("bio-banding", SERIES[2])]
+    panels = [
+        ("regret", "Change in regret (above 0 = efficiency cost)"),
+        ("talent_loss_q4", "Change in talent loss among Q4 athletes"),
+    ]
+    scout = data[data["selector"] == "scout"].set_index(["level", "seed"])
+    fig, axes = plt.subplots(1, 2, figsize=(9, 3.2))
+    for ax, (metric, title) in zip(axes, panels, strict=True):
+        ax.axhline(0.0, color=AXIS, linewidth=1)
+        ends = []
+        for family, colour in families:
+            mitigated = data[data["selector"] == family].set_index(["level", "seed"])
+            delta = (mitigated[metric] - scout[metric]).groupby("level").mean()
+            ax.plot(delta.index, delta.values, marker="o", color=colour, label=family)
+            ends.append((delta.index[-1], delta.values[-1], family))
+        _label_ends(ax, ends, gap=0.08)
+        ax.set_title(title, loc="left")
+        ax.set_xlabel("kappa (share of the maturation advantage that persists)")
+        ax.set_xlim(right=data["level"].max() * 1.3)
+    axes[0].legend(loc="upper left", fontsize=8)
+    fig.suptitle(
+        "Sensitivity. Mitigations become costly when maturation persists into adulthood",
+        x=0.01,
+        ha="left",
+        fontsize=11,
+    )
+    fig.text(
+        0.01,
+        -0.02,
+        "Paired change with respect to the scout, mean over seeds; feedback loop on (c = 1).",
+        color=MUTED,
+        fontsize=8,
+    )
+    fig.tight_layout()
+    fig.savefig(out / "sensitivity_kappa.png", dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--results", type=Path, default=Path("results"))
@@ -243,6 +286,7 @@ def main() -> None:
     rq1_figure(pd.read_csv(args.results / "rq1_runs_linear.csv"), args.out)
     rq2_figure(pd.read_csv(args.results / "rq2_stages.csv"), args.out)
     rq3_figure(pd.read_csv(args.results / "rq3_runs_linear.csv"), args.out)
+    sensitivity_figure(pd.read_csv(args.results / "sensitivity_oat.csv"), args.out)
     print(f"figures written to {args.out}/")
 
 

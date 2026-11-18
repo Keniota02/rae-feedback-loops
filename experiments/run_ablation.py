@@ -7,7 +7,8 @@ birth position, and R^2 of a linear regression of the birth position on all of t
 Part B (ablation): ML selectors trained WITHOUT birth information on feature subsets, deployed on
 a fresh cohort; paired change of the Q1/Q4 ratio with respect to the scout that produced the data.
 
-Usage: python experiments/run_ablation.py [--seeds 20] [--model linear|gbm] [--athletes 20000]
+Usage: python experiments/run_ablation.py [--seeds 20] [--athletes 20000]
+       [--model linear|linear_by_stage|gbm]
 Results are written to ``results/ablation_leakage.csv`` and ``results/ablation_<model>.csv``.
 """
 
@@ -99,7 +100,7 @@ def report(leak: pd.DataFrame, runs: pd.DataFrame) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--seeds", type=int, default=20)
-    parser.add_argument("--model", choices=["linear", "gbm"], default="linear")
+    parser.add_argument("--model", choices=["linear", "linear_by_stage", "gbm"], default="linear")
     parser.add_argument("--athletes", type=int, default=20_000)
     args = parser.parse_args()
 

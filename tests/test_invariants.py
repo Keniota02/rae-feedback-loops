@@ -83,3 +83,18 @@ def test_feedback_loop_increases_talent_loss_for_a_scout_with_memory():
     assert overall_talent_loss(with_loop) > overall_talent_loss(without)
     assert regret(with_loop) > regret(without)
     assert selection_rate_ratio(with_loop) > selection_rate_ratio(without)
+
+
+def test_persistent_maturation_changes_the_target_not_the_athletes():
+    """With kappa > 0 the target is T + kappa * M: the oracle still loses nobody, but now it
+    selects early-born athletes more often, because part of their advantage is real."""
+    persistent = replace(BIG, adult_maturation_weight=0.5)
+    oracle = simulate(persistent, OracleSelector())
+    assert overall_talent_loss(oracle) == 0.0
+    assert selection_rate_ratio(oracle) > 1.1
+    base = simulate(BIG, OracleSelector())
+    assert np.array_equal(base.athletes.talent, oracle.athletes.talent)
+    assert base.athletes.potential is None
+    assert np.allclose(
+        oracle.athletes.potential, oracle.athletes.talent + 0.5 * oracle.athletes.maturation
+    )

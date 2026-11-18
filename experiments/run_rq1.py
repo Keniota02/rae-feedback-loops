@@ -9,7 +9,8 @@ so differences with the historical selector are paired.
 Grid: historical selector x labelling regime (past decisions vs later performance) x birth
 information (withheld vs available) x feedback loop (off vs on).
 
-Usage: python experiments/run_rq1.py [--seeds 20] [--model linear|gbm] [--athletes 20000]
+Usage: python experiments/run_rq1.py [--seeds 20] [--athletes 20000]
+       [--model linear|linear_by_stage|gbm]
 Results are written to ``results/rq1_runs_<model>.csv`` (ignored by git).
 """
 
@@ -85,7 +86,7 @@ def report(runs: pd.DataFrame) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--seeds", type=int, default=20)
-    parser.add_argument("--model", choices=["linear", "gbm"], default="linear")
+    parser.add_argument("--model", choices=["linear", "linear_by_stage", "gbm"], default="linear")
     parser.add_argument("--athletes", type=int, default=20_000)
     args = parser.parse_args()
 

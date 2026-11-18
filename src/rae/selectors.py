@@ -68,10 +68,11 @@ def choose(selector: Selector, ctx: StageContext, k: int) -> np.ndarray:
 
 
 class OracleSelector:
-    """Ranks by latent talent. Not implementable in practice: it is the benchmark."""
+    """Ranks by the selection target (latent talent, or adult potential when part of the
+    maturation advantage persists). Not implementable in practice: it is the benchmark."""
 
     def scores(self, ctx: StageContext) -> np.ndarray:
-        return ctx.athletes.talent[ctx.pool]
+        return ctx.athletes.target[ctx.pool]
 
 
 class PerformanceSelector:
