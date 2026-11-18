@@ -8,13 +8,24 @@ Unselected athletes leave the system with probability ``dropout_unselected``.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
 from rae.athletes import Athletes, generate_athletes
 from rae.config import SimConfig
 from rae.selectors import Selector
+
+
+@dataclass(frozen=True)
+class StageRecord:
+    """Log of one stage. Arrays are aligned with ``pool`` (indices of athletes in the pool)."""
+
+    stage: int
+    pool: np.ndarray
+    observed: np.ndarray  # observed performance at this stage
+    times_selected_before: np.ndarray  # number of earlier stages at which the athlete was selected
+    selected: np.ndarray  # bool: selected at this stage
 
 
 @dataclass(frozen=True)
@@ -25,6 +36,7 @@ class SimulationResult:
     selected: np.ndarray
     times_selected: np.ndarray
     config: SimConfig
+    stages: tuple[StageRecord, ...] = field(default=())
 
 
 def simulate(cfg: SimConfig, selector: Selector) -> SimulationResult:
@@ -44,6 +56,7 @@ def simulate(cfg: SimConfig, selector: Selector) -> SimulationResult:
     in_pool = np.ones(n, dtype=bool)
     times_selected = np.zeros(n, dtype=int)
     selected = np.zeros(n, dtype=bool)
+    records: list[StageRecord] = []
 
     for stage, fraction in enumerate(cfg.stage_fractions):
         pool = np.flatnonzero(in_pool)
@@ -60,17 +73,37 @@ def simulate(cfg: SimConfig, selector: Selector) -> SimulationResult:
             + cfg.noise_sd * noise[stage, pool]
         )
 
-        scores = selector.scores(stage=stage, pool=pool, athletes=athletes, observed=observed)
+        before = times_selected[pool].copy()
+        scores = selector.scores(
+            stage=stage,
+            pool=pool,
+            athletes=athletes,
+            observed=observed,
+            times_selected=before,
+        )
         top = np.argsort(-scores, kind="stable")[:k]
 
         selected = np.zeros(n, dtype=bool)
         selected[pool[top]] = True
         times_selected[selected] += 1
+        records.append(
+            StageRecord(
+                stage=stage,
+                pool=pool,
+                observed=observed,
+                times_selected_before=before,
+                selected=selected[pool],
+            )
+        )
 
         unselected = pool[~selected[pool]]
         leaves = dropout_u[stage, unselected] < cfg.dropout_unselected
         in_pool[unselected[leaves]] = False
 
     return SimulationResult(
-        athletes=athletes, selected=selected, times_selected=times_selected, config=cfg
+        athletes=athletes,
+        selected=selected,
+        times_selected=times_selected,
+        config=cfg,
+        stages=tuple(records),
     )

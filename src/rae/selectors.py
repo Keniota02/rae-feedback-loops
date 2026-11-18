@@ -22,8 +22,11 @@ class Selector(Protocol):
         pool: np.ndarray,
         athletes: Athletes,
         observed: np.ndarray,
+        times_selected: np.ndarray,
     ) -> np.ndarray:
-        """``pool`` holds athlete indices; ``observed`` is aligned with ``pool``."""
+        """``pool`` holds athlete indices; ``observed`` and ``times_selected`` are aligned
+        with ``pool`` (``times_selected`` counts the earlier stages at which each athlete
+        was selected)."""
         ...
 
 
@@ -37,6 +40,7 @@ class OracleSelector:
         pool: np.ndarray,
         athletes: Athletes,
         observed: np.ndarray,
+        times_selected: np.ndarray,
     ) -> np.ndarray:
         return athletes.talent[pool]
 
@@ -55,5 +59,6 @@ class PerformanceSelector:
         pool: np.ndarray,
         athletes: Athletes,
         observed: np.ndarray,
+        times_selected: np.ndarray,
     ) -> np.ndarray:
         return observed

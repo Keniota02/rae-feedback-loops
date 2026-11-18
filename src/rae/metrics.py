@@ -19,6 +19,18 @@ def selection_rate_ratio(res: SimulationResult) -> float:
     return float(rates[0] / rates[3]) if rates[3] > 0 else float("inf")
 
 
+def selection_rate_ratio_by_stage(res: SimulationResult) -> np.ndarray:
+    """Q1/Q4 selection-rate ratio at each stage (share of the initial cohort selected there)."""
+    quarter = res.athletes.quarter
+    ratios = []
+    for record in res.stages:
+        chosen = np.zeros(len(res.athletes), dtype=bool)
+        chosen[record.pool[record.selected]] = True
+        q1, q4 = chosen[quarter == 0].mean(), chosen[quarter == 3].mean()
+        ratios.append(q1 / q4 if q4 > 0 else float("inf"))
+    return np.array(ratios)
+
+
 def high_talent_mask(res: SimulationResult) -> np.ndarray:
     """Athletes in the top ``top_talent_fraction`` of latent talent."""
     threshold = np.quantile(res.athletes.talent, 1.0 - res.config.top_talent_fraction)

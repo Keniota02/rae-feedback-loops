@@ -48,3 +48,34 @@ def test_efficiency_and_regret():
     res = _result([True, False, True, False, False, True, False, False])
     assert mean_selected_talent(res) == pytest.approx(2.0)  # talents 3, 3, 0
     assert regret(res) == pytest.approx(1.0)  # oracle picks 3, 3, 3
+
+
+def test_selection_rate_ratio_by_stage():
+    from rae import StageRecord
+    from rae.metrics import selection_rate_ratio_by_stage
+
+    base = _result([False] * 8)
+    stages = (
+        StageRecord(
+            stage=0,
+            pool=np.arange(8),
+            observed=np.zeros(8),
+            times_selected_before=np.zeros(8, dtype=int),
+            selected=np.array([True, True, True, False, False, False, False, True]),
+        ),
+        StageRecord(
+            stage=1,
+            pool=np.array([0, 1, 2, 7]),
+            observed=np.zeros(4),
+            times_selected_before=np.ones(4, dtype=int),
+            selected=np.array([True, False, False, True]),
+        ),
+    )
+    res = SimulationResult(
+        athletes=base.athletes,
+        selected=base.selected,
+        times_selected=base.times_selected,
+        config=base.config,
+        stages=stages,
+    )
+    assert np.allclose(selection_rate_ratio_by_stage(res), [2.0, 1.0])

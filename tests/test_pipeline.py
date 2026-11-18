@@ -32,3 +32,17 @@ def test_selected_athletes_were_selected_at_every_stage_they_accumulated_exposur
     cfg = SimConfig(n_athletes=5_000, dropout_unselected=1.0)  # pure pyramid
     res = simulate(cfg, PerformanceSelector())
     assert np.all(res.times_selected[res.selected] == cfg.n_stages)
+
+
+def test_stage_logs_are_consistent():
+    cfg = SimConfig(n_athletes=5_000, stage_fractions=(0.4, 0.25, 0.1))
+    res = simulate(cfg, PerformanceSelector())
+    assert len(res.stages) == cfg.n_stages
+    for record, fraction in zip(res.stages, cfg.stage_fractions, strict=True):
+        assert record.selected.sum() == round(fraction * cfg.n_athletes)
+        assert record.pool.shape == record.observed.shape == record.selected.shape
+        assert record.pool.shape == record.times_selected_before.shape
+    for current, following in zip(res.stages, res.stages[1:], strict=False):
+        assert set(following.pool) <= set(current.pool)
+    last = res.stages[-1]
+    assert np.array_equal(last.pool[last.selected], np.flatnonzero(res.selected))
